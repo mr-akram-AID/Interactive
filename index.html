@@ -1,0 +1,1731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>AID Math Quest - Interactive (Enhanced)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-deep: #0a1428; --bg-mid: #0f2438; --field: #1a7a4f; --field-dark: #0d4d2e;
+  --gold: #ffd60a; --orange: #ff6b35; --crimson: #e63946; --text: #f8f9fa;
+  --muted: #8a9bb0; --card: rgba(255,255,255,0.06); --border: rgba(255,255,255,0.12);
+}
+* { font-family: 'Outfit', sans-serif; -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+.font-display { font-family: 'Russo One', sans-serif; letter-spacing: 0.02em; }
+html, body { margin: 0; padding: 0; background: var(--bg-deep); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+body {
+  background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(26,122,79,0.25), transparent),
+              radial-gradient(ellipse 60% 40% at 80% 80%, rgba(255,107,53,0.1), transparent),
+              linear-gradient(180deg, #0a1428 0%, #061018 100%);
+  background-attachment: fixed;
+}
+.particles { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.particle { position: absolute; background: radial-gradient(circle, rgba(255,214,10,0.4), transparent 70%); border-radius: 50%; animation: float 25s linear infinite; }
+@keyframes float { from { transform: translateY(110vh); opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } to { transform: translateY(-10vh) translateX(60px); opacity: 0; } }
+
+.screen { display: none; min-height: 100vh; position: relative; z-index: 1; padding: 1.5rem 1rem; }
+.screen.active { display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+
+/* ROBUST FIXED LAYOUT FOR QUIZ BUTTONS */
+#screen-quiz.active {
+  padding-bottom: 120px; /* CRITICAL: Creates space so content isn't hidden behind fixed bar */
+}
+.quiz-action-bar {
+  position: fixed; /* CRITICAL: Glues to bottom of viewport regardless of browser UI */
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(10, 20, 40, 0.98);
+  backdrop-filter: blur(10px);
+  border-top: 2px solid var(--gold);
+  padding: 1.2rem 1.5rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100; /* High z-index to stay above canvas */
+  box-shadow: 0 -10px 30px rgba(0,0,0,0.3);
+}
+.quiz-action-bar.hidden { display: none; }
+.quiz-bar-inner {
+  width: 100%;
+  max-width: 1024px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.aid-logo {
+  font-family: 'Russo One', sans-serif; font-size: clamp(5rem, 14vw, 9rem); line-height: 0.9;
+  background: linear-gradient(135deg, #ffd60a 0%, #ff8c42 35%, #ffd60a 70%, #ff6b35 100%);
+  background-size: 200% 200%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  letter-spacing: 0.15em; filter: drop-shadow(0 0 30px rgba(255,214,10,0.5));
+  animation: logoShine 4s ease-in-out infinite, logoFloat 6s ease-in-out infinite;
+}
+@keyframes logoShine { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+@keyframes logoFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--gold), var(--orange)); color: #0a1428; font-weight: 700;
+  font-family: 'Russo One', sans-serif; letter-spacing: 0.05em; padding: 1rem 2.5rem; border-radius: 9999px;
+  border: none; cursor: pointer; text-transform: uppercase; font-size: 1.2rem;
+  box-shadow: 0 8px 30px rgba(255,214,10,0.4), inset 0 -3px 0 rgba(0,0,0,0.2); transition: all 0.2s;
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(255,214,10,0.6); }
+.btn-primary:active { transform: translateY(1px); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.btn-secondary {
+  background: rgba(255,255,255,0.08); color: var(--text); border: 1px solid var(--border);
+  padding: 1rem 2rem; border-radius: 9999px; cursor: pointer; font-weight: 600; transition: all 0.2s;
+  font-size: 1.1rem;
+}
+.btn-secondary:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3); }
+
+.name-input {
+  background: rgba(255,255,255,0.06); border: 2px solid var(--border); color: var(--text);
+  padding: 1rem 1.5rem; border-radius: 16px; font-size: 1.25rem; font-weight: 500; text-align: center;
+  width: 100%; max-width: 400px; transition: all 0.2s; outline: none;
+}
+.name-input:focus { border-color: var(--gold); background: rgba(255,255,255,0.1); box-shadow: 0 0 0 4px rgba(255,214,10,0.1); }
+
+.topic-card, .lesson-card {
+  background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+  border: 1px solid var(--border); border-radius: 24px; padding: 1.75rem; cursor: pointer; transition: all 0.3s; position: relative; overflow: hidden;
+}
+.topic-card:hover, .lesson-card:hover { transform: translateY(-4px); border-color: var(--gold); box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
+.topic-1 { background: linear-gradient(135deg, rgba(34,197,94,0.18), rgba(13,77,46,0.3)); }
+.topic-2 { background: linear-gradient(135deg, rgba(255,107,53,0.18), rgba(180,50,30,0.2)); }
+.topic-3 { background: linear-gradient(135deg, rgba(59,130,246,0.18), rgba(30,80,180,0.2)); }
+
+.question-card {
+  background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+  border: 1px solid var(--border); border-radius: 24px; padding: 1.5rem; backdrop-filter: blur(10px);
+}
+
+.score-badge {
+  background: linear-gradient(135deg, var(--gold), var(--orange)); color: #0a1428;
+  font-family: 'Russo One', sans-serif; padding: 0.6rem 1.2rem; border-radius: 9999px;
+  display: inline-flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 20px rgba(255,214,10,0.4);
+  font-size: 1.1rem;
+}
+
+.goal-overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 2000; pointer-events: none; }
+.goal-overlay.active { display: flex; }
+.goal-text { font-family: 'Russo One', sans-serif; font-size: clamp(4rem, 15vw, 10rem); background: linear-gradient(135deg, #ffd60a, #ff6b35); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 30px rgba(255,214,10,0.8)); animation: goalBounce 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55); }
+.save-text { font-family: 'Russo One', sans-serif; font-size: clamp(3rem, 10vw, 7rem); background: linear-gradient(135deg, #ef4444, #f87171); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: goalBounce 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55); }
+@keyframes goalBounce { 0% { transform: scale(0) rotate(-20deg); opacity: 0; } 60% { transform: scale(1.2) rotate(5deg); opacity: 1; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 3000; padding: 1rem; }
+.modal-overlay.active { display: flex; animation: fadeIn 0.2s; }
+.modal-content { background: linear-gradient(135deg, #1a2942, #0f1c2e); border: 1px solid var(--gold); border-radius: 24px; padding: 1.75rem; max-width: 500px; width: 100%; box-shadow: 0 30px 60px rgba(0,0,0,0.5); }
+
+.progress-bar { height: 8px; background: rgba(255,255,255,0.1); border-radius: 9999px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--gold), var(--orange)); border-radius: 9999px; transition: width 0.4s ease; }
+
+.field-wrapper { background: linear-gradient(180deg, #1a7a4f 0%, #0d4d2e 100%); border-radius: 16px; overflow: hidden; border: 2px solid rgba(255,255,255,0.2); position: relative; }
+.step-list { background: rgba(255,255,255,0.04); border-left: 4px solid var(--gold); padding: 0.85rem 1.1rem; border-radius: 8px; margin-top: 0.75rem; }
+.step-item { padding: 0.35rem 0; display: flex; gap: 0.75rem; align-items: flex-start; }
+.step-number { background: var(--gold); color: #0a1428; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.75rem; flex-shrink: 0; font-family: 'Russo One', sans-serif; }
+
+.ranking-row { display: flex; align-items: center; padding: 0.85rem 1.25rem; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); gap: 1rem; }
+.ranking-row.you { background: linear-gradient(135deg, rgba(255,214,10,0.18), rgba(255,107,53,0.1)); border-color: var(--gold); }
+.rank-number { font-family: 'Russo One', sans-serif; font-size: 1.35rem; width: 45px; text-align: center; }
+.rank-1 { color: #ffd60a; } .rank-2 { color: #d4d4d4; } .rank-3 { color: #cd7f32; }
+
+.certificate { background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 50%, #fffbeb 100%); color: #1f2937; padding: 2.5rem; border: 8px double var(--gold); border-radius: 16px; position: relative; max-width: 800px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+.fade-in { animation: fadeInUp 0.5s ease-out; }
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+.confetti { position: fixed; width: 10px; height: 10px; pointer-events: none; z-index: 2500; }
+.explanation-page h3 { font-family: 'Russo One', sans-serif; font-size: 1.5rem; color: var(--gold); margin-bottom: 0.75rem; }
+.example-box { background: rgba(255,214,10,0.08); border-left: 4px solid var(--gold); padding: 1rem 1.25rem; border-radius: 8px; margin-top: 1rem; }
+
+#interactive-canvas { display: block; width: 100%; height: 300px; background: rgba(0,0,0,0.2); border-radius: 12px; cursor: pointer; touch-action: none; }
+
+.mode-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:2rem;cursor:pointer;transition:all 0.3s;position:relative;overflow:hidden;text-align:center}
+.mode-card:hover{transform:translateY(-4px);border-color:var(--gold);box-shadow:0 12px 30px rgba(255,214,10,0.15)}
+.mode-card::before{content:'';position:absolute;top:-50%;right:-50%;width:200px;height:200px;background:radial-gradient(circle,rgba(255,214,10,0.1),transparent 70%);filter:blur(20px);pointer-events:none}
+#ghost-content,#voice-content{min-height:400px}
+.ghost-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.5rem;margin-bottom:1rem}
+.ghost-card h3{color:var(--gold);font-family:'Russo One',sans-serif;font-size:1.25rem;margin-bottom:0.5rem}
+.timer-display{font-family:'Russo One',sans-serif;font-size:3rem;color:var(--gold);text-align:center;margin:1rem 0}
+.voice-shape{font-size:5rem;text-align:center;margin:1rem 0}
+@media (max-width:768px){.mode-card{padding:1.5rem}}
+
+</style>
+</head>
+<body>
+
+<div class="particles" id="particles"></div>
+
+<!-- START SCREEN -->
+<section id="screen-start" class="screen active">
+  <div class="text-center fade-in" style="margin: auto;">
+    <div class="aid-logo">AID</div>
+    <div class="text-base md:text-lg tracking-[0.3em] mt-3" style="color: var(--gold); font-family: 'Russo One', sans-serif;">MATH QUEST</div>
+    <div class="text-sm tracking-[0.35em] uppercase mt-5" style="color: var(--muted);">design by Mr.Akram</div>
+    <div class="mt-10 max-w-md mx-auto px-4">
+      <label class="block mb-3 text-base font-medium" style="color: var(--muted);">Enter your first name to start</label>
+      <input type="text" id="student-name" class="name-input" placeholder="Your name" maxlength="20" />
+      <button class="btn-primary mt-6 text-xl w-full md:w-auto" id="btn-start">Kick Off</button>
+    </div>
+  </div>
+</section>
+
+<!-- TOPICS SCREEN -->
+<section id="screen-topics" class="screen">
+  <div class="w-full max-w-5xl fade-in">
+    <div class="flex items-center justify-between mb-8 flex-wrap gap-3">
+      <div>
+        <div class="text-xs tracking-[0.3em]" style="color: var(--gold); font-family: 'Russo One', sans-serif;">AID MATH QUEST</div>
+        <h1 class="font-display text-3xl md:text-5xl mt-1">Welcome, <span id="welcome-name" style="color: var(--gold);">Player</span>!</h1>
+      </div>
+      <button class="btn-secondary" onclick="showScreen('screen-modes')">← Modes</button>
+    </div>
+    <div class="grid md:grid-cols-2 gap-6" id="topics-grid"></div>
+  </div>
+</section>
+
+<!-- LESSONS SCREEN -->
+<section id="screen-lessons" class="screen">
+  <div class="w-full max-w-5xl fade-in">
+    <button class="btn-secondary mb-3" onclick="showTopics()">← Topics</button>
+    <div class="text-xs tracking-[0.3em]" id="lessons-topic-code" style="color: var(--gold); font-family: 'Russo One', sans-serif;">TOPIC 1</div>
+    <h1 class="font-display text-3xl md:text-5xl mt-1" id="lessons-topic-title">Topic Title</h1>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6" id="lessons-grid"></div>
+  </div>
+</section>
+
+<!-- EXPLANATION SCREEN -->
+<section id="screen-explanation" class="screen">
+  <div class="w-full max-w-3xl fade-in">
+    <div class="flex items-center justify-between mb-6 flex-wrap gap-2">
+      <div>
+        <div class="text-xs tracking-[0.3em]" id="exp-lesson-code" style="color: var(--gold); font-family: 'Russo One', sans-serif;">LESSON 1-1</div>
+        <h1 class="font-display text-2xl md:text-4xl mt-1" id="exp-lesson-title">Lesson Title</h1>
+      </div>
+      <div class="text-sm px-3 py-1.5 rounded-full" style="background: var(--card);">Page <span id="exp-page-num">1</span> of <span id="exp-page-total">2</span></div>
+    </div>
+    <div class="question-card explanation-page" id="explanation-content" style="min-height: 350px;"></div>
+    <div class="flex justify-between mt-6">
+      <button class="btn-secondary" id="exp-prev" onclick="prevExpPage()" style="visibility:hidden;">← Previous</button>
+      <button class="btn-primary" id="exp-next" onclick="nextExpPage()">Start Match →</button>
+    </div>
+  </div>
+</section>
+
+<!-- QUIZ SCREEN (New Layout Structure) -->
+<section id="screen-quiz" class="screen">
+  <div id="quiz-content" class="w-full max-w-4xl">
+    <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
+      <div class="score-badge">⚽ Goals: <span id="score-display">0</span></div>
+      <div class="text-sm font-medium" style="color: var(--muted);">Question <span id="q-current">1</span> of <span id="q-total">5</span></div>
+      <button class="btn-secondary text-sm" onclick="exitQuiz()" style="padding: 0.6rem 1.2rem;">Exit</button>
+    </div>
+    
+    <div class="progress-bar mb-5"><div class="progress-fill" id="progress-fill" style="width: 0%;"></div></div>
+    <div class="field-wrapper mb-4" style="height: 80px;"><canvas id="field-canvas"></canvas></div>
+    
+    <div class="question-card mb-4">
+      <div class="text-xs tracking-[0.3em] mb-2" style="color: var(--gold); font-family: 'Russo One', sans-serif;">YOUR MISSION</div>
+      <div class="text-lg md:text-xl font-medium leading-relaxed" id="question-text">Loading...</div>
+    </div>
+
+    <div class="question-card mb-4">
+      <canvas id="interactive-canvas"></canvas>
+    </div>
+
+    <div id="explanation-box" class="question-card mt-4" style="display:none; margin-bottom: 20px;">
+      <div class="text-xs tracking-[0.3em] mb-2" style="color: var(--gold); font-family: 'Russo One', sans-serif;">STEP BY STEP</div>
+      <div class="step-list" id="explanation-steps"></div>
+    </div>
+  </div>
+
+  <div class="quiz-action-bar" id="quiz-action-bar">
+    <div class="quiz-bar-inner">
+      <button class="btn-secondary" id="btn-hint" onclick="showHint()">💡 Hint</button>
+      <button class="btn-secondary hidden" id="btn-speak" onclick="window.startVoiceListening && window.startVoiceListening()">🎤 Speak</button>
+      <div class="flex gap-3">
+        <button class="btn-primary" id="btn-check" onclick="checkInteractiveAnswer()">Check Answer</button>
+        <button class="btn-primary hidden" id="btn-next" onclick="nextQuestion()">Next →</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- RESULTS & CERTIFICATE -->
+<section id="screen-results" class="screen">
+  <div class="w-full max-w-3xl fade-in">
+    <div class="text-center mb-6">
+      <div class="text-xs tracking-[0.3em] mb-2" style="color: var(--gold); font-family: 'Russo One', sans-serif;">FULL TIME</div>
+      <h1 class="font-display text-4xl md:text-6xl">Match Results</h1>
+      <p class="text-base md:text-lg mt-3" style="color: var(--muted);">Great effort, <span id="results-name" style="color: var(--gold);">Player</span>!</p>
+    </div>
+    <div class="grid grid-cols-3 gap-3 mb-6">
+      <div class="question-card text-center"><div class="text-3xl md:text-4xl font-display" style="color: var(--gold);" id="results-goals">0</div><div class="text-xs mt-1" style="color: var(--muted);">Goals Scored</div></div>
+      <div class="question-card text-center"><div class="text-3xl md:text-4xl font-display" style="color: #22c55e;" id="results-correct">0</div><div class="text-xs mt-1" style="color: var(--muted);">Correct</div></div>
+      <div class="question-card text-center"><div class="text-3xl md:text-4xl font-display" style="color: var(--orange);" id="results-accuracy">0%</div><div class="text-xs mt-1" style="color: var(--muted);">Accuracy</div></div>
+    </div>
+    <div class="question-card mb-6">
+      <div class="text-center mb-4"><h2 class="font-display text-xl md:text-2xl">League Table</h2></div>
+      <div id="ranking-list" class="space-y-2"></div>
+    </div>
+    <div class="flex flex-wrap gap-3 justify-center">
+      <button class="btn-primary" onclick="showCertificate()">🏆 Get Certificate</button>
+      <button class="btn-secondary" onclick="restartQuiz()">Play Again</button>
+      <button class="btn-secondary" onclick="showTopics()">More Topics</button>
+    </div>
+  </div>
+</section>
+
+<section id="screen-certificate" class="screen">
+  <div class="w-full max-w-4xl fade-in">
+    <div class="certificate" id="certificate-paper">
+      <div class="text-center">
+        <div class="font-display text-2xl md:text-3xl mb-1" style="color: #b8860b;">AID MATH QUEST</div>
+        <div class="text-xs md:text-sm tracking-[0.4em] uppercase mb-6" style="color: #6b7280;">Certificate of Achievement</div>
+        <div class="text-sm mb-2" style="color: #6b7280;">This certificate is proudly presented to</div>
+        <div class="font-display text-3xl md:text-5xl mb-4" id="cert-name">Student Name</div>
+        <div class="text-sm mb-2" style="color: #6b7280;">for successfully completing</div>
+        <div class="text-lg md:text-2xl font-semibold mb-6" id="cert-lesson">Lesson Name</div>
+        <div class="flex justify-center gap-6 md:gap-10 my-6 flex-wrap">
+          <div><div class="font-display text-2xl md:text-3xl" style="color: #b8860b;" id="cert-goals">0</div><div class="text-xs uppercase tracking-widest" style="color: #6b7280;">Goals Scored</div></div>
+          <div><div class="font-display text-2xl md:text-3xl" style="color: #b8860b;" id="cert-accuracy">0%</div><div class="text-xs uppercase tracking-widest" style="color: #6b7280;">Accuracy</div></div>
+          <div><div class="font-display text-2xl md:text-3xl" style="color: #b8860b;" id="cert-rank">1st</div><div class="text-xs uppercase tracking-widest" style="color: #6b7280;">Rank</div></div>
+        </div>
+        <div class="flex justify-between items-end mt-10 md:mt-12 flex-wrap gap-4">
+          <div class="text-left"><div class="text-xs" style="color: #6b7280;">Date</div><div class="font-semibold" id="cert-date">January 1, 2024</div></div>
+          <div class="text-center"><div style="font-family: 'Brush Script MT', cursive; font-size: 1.75rem; color: #1f2937;">Mr. Akram</div><div style="border-top: 2px solid #1f2937; padding-top: 4px; margin-top: 4px; min-width: 180px;"><div class="text-xs uppercase tracking-widest" style="color: #6b7280;">Math Instructor</div></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-3 justify-center mt-6">
+      <button class="btn-primary" onclick="downloadCertificatePDF()">📄 Download PDF</button>
+      <button class="btn-secondary" onclick="printCertificate()">🖨️ Print</button>
+      <button class="btn-secondary" onclick="showResults()">← Back</button>
+    </div>
+  </div>
+</section>
+
+
+<!-- MODE SELECTION SCREEN -->
+<section id="screen-modes" class="screen">
+  <div class="w-full max-w-5xl fade-in">
+    <div class="flex items-center justify-between mb-8 flex-wrap gap-3">
+      <div>
+        <div class="text-xs tracking-[0.3em]" style="color: var(--gold); font-family: 'Russo One', sans-serif;">AID MATH QUEST</div>
+        <h1 class="font-display text-3xl md:text-5xl mt-1">Welcome, <span id="mode-welcome-name" style="color: var(--gold);">Player</span>!</h1>
+        <p class="text-base mt-2" style="color: var(--muted);">Choose how you want to play today</p>
+      </div>
+      <button class="btn-secondary" onclick="goHome()">Home</button>
+    </div>
+    <div class="grid md:grid-cols-3 gap-6">
+      <div class="mode-card" onclick="showTopics()">
+        <div class="text-5xl mb-3">📚</div>
+        <h2 class="font-display text-2xl mb-2">Lessons</h2>
+        <p class="text-sm mb-4" style="color: var(--muted);">Choose a topic and lesson to learn and practice</p>
+        <span class="btn-secondary" style="pointer-events:none;">Start →</span>
+      </div>
+      <div class="mode-card" onclick="startGhostMode()">
+        <div class="text-5xl mb-3">👻</div>
+        <h2 class="font-display text-2xl mb-2">Ghost Mode</h2>
+        <p class="text-sm mb-4" style="color: var(--muted);">Race against a friend's recorded run. 10 questions, fastest wins!</p>
+        <span class="btn-secondary" style="pointer-events:none;">Challenge →</span>
+      </div>
+      <div class="mode-card" onclick="startVoiceMode()">
+        <div class="text-5xl mb-3">🎤</div>
+        <h2 class="font-display text-2xl mb-2">Voice Mode</h2>
+        <p class="text-sm mb-4" style="color: var(--muted);">See shapes and say their names out loud!</p>
+        <span class="btn-secondary" style="pointer-events:none;">Speak →</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- GHOST MODE SCREEN -->
+<section id="screen-ghost" class="screen">
+  <div class="w-full max-w-4xl fade-in">
+    <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+      <div>
+        <div class="text-xs tracking-[0.3em]" style="color: var(--gold); font-family: 'Russo One', sans-serif;">GHOST MODE</div>
+        <h1 class="font-display text-3xl md:text-4xl mt-1">Race the Ghost</h1>
+      </div>
+      <button class="btn-secondary" onclick="showScreen('screen-modes')">← Back</button>
+    </div>
+    <div id="ghost-content"></div>
+  </div>
+</section>
+
+<!-- VOICE MODE SCREEN -->
+<section id="screen-voice" class="screen">
+  <div class="w-full max-w-4xl fade-in">
+    <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+      <div>
+        <div class="text-xs tracking-[0.3em]" style="color: var(--gold); font-family: 'Russo One', sans-serif;">VOICE MODE</div>
+        <h1 class="font-display text-3xl md:text-4xl mt-1">Say the Shape</h1>
+      </div>
+      <button class="btn-secondary" onclick="showScreen('screen-modes')">← Back</button>
+    </div>
+    <div id="voice-content"></div>
+  </div>
+</section>
+
+<div class="modal-overlay" id="hint-modal">
+  <div class="modal-content">
+    <div class="flex items-center gap-3 mb-3"><div class="text-3xl">💡</div><h3 class="font-display text-xl md:text-2xl">Need a hand?</h3></div>
+    <div class="text-base md:text-lg leading-relaxed" id="hint-text">Hint goes here...</div>
+    <button class="btn-primary w-full mt-5" onclick="closeHint()">Back to Question</button>
+  </div>
+</div>
+
+<div class="goal-overlay" id="goal-overlay">
+  <div class="text-center">
+    <div id="goal-text-big"></div>
+    <div class="text-xl md:text-2xl mt-4 font-display" id="goal-message" style="color: var(--gold);"></div>
+  </div>
+</div>
+
+<script>
+// ============ AUDIO SYSTEM ============
+const Sound = {
+  ctx: null,
+  init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
+  cheer() {
+    this.init(); const now = this.ctx.currentTime;
+    [523, 659, 784].forEach((freq, i) => {
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.type = 'triangle'; o.frequency.value = freq;
+      g.gain.setValueAtTime(0, now + 0.1); g.gain.linearRampToValueAtTime(0.15, now + 0.2 + i*0.05);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 1);
+      o.connect(g); g.connect(this.ctx.destination); o.start(now + 0.1); o.stop(now + 1);
+    });
+  },
+  ohOh() {
+    this.init(); const now = this.ctx.currentTime;
+    [400, 320, 260].forEach((freq, i) => {
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.type = 'sawtooth'; o.frequency.value = freq;
+      g.gain.setValueAtTime(0, now + i*0.15); g.gain.linearRampToValueAtTime(0.15, now + i*0.15 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, now + i*0.15 + 0.18);
+      o.connect(g); g.connect(this.ctx.destination); o.start(now + i*0.15); o.stop(now + i*0.15 + 0.2);
+    });
+  },
+  whistle() {
+    this.init(); const now = this.ctx.currentTime;
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(1800, now); o.frequency.linearRampToValueAtTime(2200, now + 0.3); o.frequency.linearRampToValueAtTime(1800, now + 0.6);
+    g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.12, now + 0.05); g.gain.setValueAtTime(0.12, now + 0.5); g.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+    o.connect(g); g.connect(this.ctx.destination); o.start(now); o.stop(now + 0.7);
+  },
+  click() { this.init(); const now = this.ctx.currentTime; const o = this.ctx.createOscillator(), g = this.ctx.createGain(); o.type = 'square'; o.frequency.value = 800; g.gain.setValueAtTime(0.08, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.05); o.connect(g); g.connect(this.ctx.destination); o.start(now); o.stop(now + 0.05); },
+  pop() { this.init(); const now = this.ctx.currentTime; const o = this.ctx.createOscillator(), g = this.ctx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(800, now); o.frequency.exponentialRampToValueAtTime(200, now + 0.1); g.gain.setValueAtTime(0.25, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.15); o.connect(g); g.connect(this.ctx.destination); o.start(now); o.stop(now + 0.15); }
+};
+
+// ============ GAME DATA ============
+const GAME_DATA = {
+  topics: [
+    {
+      id: "topic1", number: "Topic 1", title: "Time & Clocks",
+      subtitle: "Move the clock hands and master time",
+      color: "topic-1", icon: "⏰",
+      lessons: [
+        {
+          id: "1-1", title: "Telling Time (Hours & Half-Hours)",
+          explanation: [
+            { title: "Reading the Clock", body: "The short hand is the <strong style='color:var(--gold)'>Hour Hand</strong>. The long hand is the <strong style='color:var(--gold)'>Minute Hand</strong>.", example: "When the long hand points at 12, it is the top of the hour.\nWhen the long hand points at 6, it is half past the hour." },
+            { title: "Half Past", body: "When the minute hand is on the 6, it has gone halfway around the clock. We call this 'half past'. The hour hand will be halfway between two numbers.", example: "If the short hand is halfway between 3 and 4, and the long hand is on 6, the time is 3:30 (Half past 3)." }
+          ],
+          questions: [
+            { type: "clock", question: "Move the clock hands to show <strong>3:00</strong> (Three o'clock).", target: { h: 3, m: 0 }, hint: "The minute hand (long) should point straight up at the 12. The hour hand (short) should point at the 3.", explanation: "Step 1: For 3:00, the minutes are 0.\nStep 2: The long minute hand goes to 12.\nStep 3: The short hour hand goes exactly to 3." },
+            { type: "clock", question: "Move the clock hands to show <strong>5:30</strong> (Half past 5).", target: { h: 5, m: 30 }, hint: "Minute hand points at 6. Hour hand points halfway between 5 and 6.", explanation: "Step 1: 30 minutes means the long hand points at 6.\nStep 2: The hour is 5, so the short hand points halfway past 5.\nStep 3: The time is 5:30." },
+            { type: "clock", question: "Move the clock hands to show <strong>8:00</strong> (Eight o'clock).", target: { h: 8, m: 0 }, hint: "Both hands point at numbers on the right side of the clock.", explanation: "Step 1: 00 minutes means long hand at 12.\nStep 2: Short hand points exactly at 8.\nStep 3: The time is 8:00." },
+            { type: "clock", question: "Move the clock hands to show <strong>2:30</strong> (Half past 2).", target: { h: 2, m: 30 }, hint: "Long hand down at 6, short hand halfway between 2 and 3.", explanation: "Step 1: 30 minutes means long hand at 6.\nStep 2: The hour is 2, short hand halfway past 2.\nStep 3: The time is 2:30." },
+            { type: "clock", question: "Move the clock hands to show <strong>12:00</strong> (Twelve o'clock).", target: { h: 12, m: 0 }, hint: "Both hands point straight up to the top!", explanation: "Step 1: 00 minutes means long hand at 12.\nStep 2: Short hand points exactly at 12.\nStep 3: Both hands are at the top. It's 12:00." }
+          ]
+        },
+        {
+          id: "1-2", title: "Quarter Past & Quarter To",
+          explanation: [
+            { title: "Quarter Past", body: "When the minute hand is on the 3, it has gone a quarter of the way around. We say 'quarter past'.", example: "3:15 is read as 'Quarter past 3'." },
+            { title: "Quarter To", body: "When the minute hand is on the 9, it is a quarter of the way until the next hour. We say 'quarter to'.", example: "2:45 is read as 'Quarter to 3'." }
+          ],
+          questions: [
+            { type: "clock", question: "Show <strong>4:15</strong> (Quarter past 4).", target: { h: 4, m: 15 }, hint: "Minute hand on 3. Hour hand slightly past 4.", explanation: "Step 1: 15 minutes means long hand at 3.\nStep 2: Hour hand moves slightly past 4.\nStep 3: The time is 4:15." },
+            { type: "clock", question: "Show <strong>6:45</strong> (Quarter to 7).", target: { h: 6, m: 45 }, hint: "Minute hand on 9. Hour hand almost at 7.", explanation: "Step 1: 45 minutes means long hand at 9.\nStep 2: It's almost 7, so short hand is near 7.\nStep 3: The time is 6:45." },
+            { type: "clock", question: "Show <strong>9:15</strong> (Quarter past 9).", target: { h: 9, m: 15 }, hint: "Minute hand on 3. Hour hand slightly past 9.", explanation: "Step 1: 15 minutes means long hand at 3.\nStep 2: Hour hand slightly past 9.\nStep 3: The time is 9:15." },
+            { type: "clock", question: "Show <strong>11:45</strong> (Quarter to 12).", target: { h: 11, m: 45 }, hint: "Minute hand on 9. Hour hand almost at 12.", explanation: "Step 1: 45 minutes means long hand at 9.\nStep 2: Almost 12, short hand near 12.\nStep 3: The time is 11:45." },
+            { type: "clock", question: "Show <strong>1:15</strong> (Quarter past 1).", target: { h: 1, m: 15 }, hint: "Minute hand on 3. Hour hand slightly past 1.", explanation: "Step 1: 15 minutes, long hand at 3.\nStep 2: Short hand slightly past 1.\nStep 3: The time is 1:15." }
+          ]
+        }
+      ]
+    },
+    {
+      id: "topic2", number: "Topic 2", title: "Coordinate Geometry",
+      subtitle: "Tap the grid to plot points and draw shapes",
+      color: "topic-2", icon: "🎯",
+      lessons: [
+        {
+          id: "2-1", title: "Plotting Points (x, y)",
+          explanation: [
+            { title: "The Coordinate Grid", body: "The grid has two axes. The horizontal line is the <strong style='color:var(--gold)'>x-axis</strong>. The vertical line is the <strong style='color:var(--gold)'>y-axis</strong>.", example: "Points are written as (x, y).\n(x, y) means go right x spaces, then go up y spaces." },
+            { title: "How to Plot", body: "To plot (3, 2):<br>1. Start at the center (0,0).<br>2. Move right 3 lines on the x-axis.<br>3. Move up 2 lines on the y-axis.<br>4. Tap that spot!", example: "Point (0, 0) is the center.\nPoint (1, 0) is one step right." }
+          ],
+          questions: [
+            { type: "point", question: "Tap on the grid to plot the point <strong>(3, 4)</strong>.", target: [{x:3, y:4}], hint: "Start at center. Move right 3, then up 4.", explanation: "Step 1: The first number is x (left/right). Go right 3.\nStep 2: The second number is y (up/down). Go up 4.\nStep 3: Tap the intersection of x=3 and y=4." },
+            { type: "point", question: "Tap on the grid to plot the point <strong>(2, 5)</strong>.", target: [{x:2, y:5}], hint: "Right 2, Up 5.", explanation: "Step 1: x = 2. Move right 2 spaces.\nStep 2: y = 5. Move up 5 spaces.\nStep 3: Tap where they meet." },
+            { type: "point", question: "Tap on the grid to plot the point <strong>(5, 1)</strong>.", target: [{x:5, y:1}], hint: "Right 5, Up 1.", explanation: "Step 1: x = 5. Move right 5 spaces.\nStep 2: y = 1. Move up 1 space.\nStep 3: Tap where they meet." },
+            { type: "point", question: "Tap on the grid to plot the point <strong>(0, 4)</strong>.", target: [{x:0, y:4}], hint: "Don't move left or right. Just go straight up 4.", explanation: "Step 1: x = 0. Stay on the y-axis (don't move left/right).\nStep 2: y = 4. Move up 4 spaces.\nStep 3: Tap the point on the vertical line." },
+            { type: "point", question: "Tap on the grid to plot the point <strong>(4, 0)</strong>.", target: [{x:4, y:0}], hint: "Move right 4. Don't go up or down.", explanation: "Step 1: x = 4. Move right 4 spaces.\nStep 2: y = 0. Stay on the x-axis (don't move up).\nStep 3: Tap the point on the horizontal line." }
+          ]
+        },
+        {
+          id: "2-2", title: "Drawing Shapes on Grid",
+          explanation: [
+            { title: "Vertices", body: "Corners of a shape are called <strong style='color:var(--gold)'>vertices</strong>. We can plot them on a grid and connect them to make shapes.", example: "A rectangle needs 4 points (vertices).\nA triangle needs 3 points." },
+            { title: "Making a Rectangle", body: "To draw a 4x2 rectangle, you need points at:<br>(1,1), (5,1), (5,3), and (1,3).<br>Tap all 4 spots on the grid, and lines will connect them!", example: "Tapping the points in order will draw the shape." }
+          ],
+          questions: [
+            { type: "multi_point", question: "Tap the grid to draw a <strong>Square</strong> with corners at: (2,2), (5,2), (5,5), and (2,5).", target: [{x:2,y:2},{x:5,y:2},{x:5,y:5},{x:2,y:5}], hint: "It's a 3x3 square in the middle-right of the grid.", explanation: "Step 1: Plot bottom-left at (2,2).\nStep 2: Plot bottom-right at (5,2).\nStep 3: Plot top-right at (5,5) and top-left at (2,5).\nStep 4: Connect them to form a square." },
+            { type: "multi_point", question: "Tap the grid to draw a <strong>Rectangle</strong> with corners at: (1,1), (6,1), (6,3), and (1,3).", target: [{x:1,y:1},{x:6,y:1},{x:6,y:3},{x:1,y:3}], hint: "It is 5 spaces wide and 2 spaces tall.", explanation: "Step 1: Plot (1,1) and (6,1) for the bottom.\nStep 2: Plot (1,3) and (6,3) for the top.\nStep 3: Connect them to form a rectangle." },
+            { type: "multi_point", question: "Tap the grid to draw a <strong>Triangle</strong> with corners at: (2,1), (5,1), and (3,4).", target: [{x:2,y:1},{x:5,y:1},{x:3,y:4}], hint: "Two points are on the bottom, one is on top.", explanation: "Step 1: Plot (2,1) and (5,1) for the base.\nStep 2: Plot (3,4) for the top peak.\nStep 3: Connect them to form a triangle." },
+            { type: "multi_point", question: "Tap the grid to draw a <strong>Rectangle</strong> with corners at: (2,2), (4,2), (4,5), and (2,5).", target: [{x:2,y:2},{x:4,y:2},{x:4,y:5},{x:2,y:5}], hint: "It is 2 spaces wide and 3 spaces tall.", explanation: "Step 1: Plot bottom corners (2,2) and (4,2).\nStep 2: Plot top corners (2,5) and (4,5).\nStep 3: Connect them to form a rectangle." },
+            { type: "multi_point", question: "Tap the grid to draw a <strong>Square</strong> with corners at: (1,1), (3,1), (3,3), and (1,3).", target: [{x:1,y:1},{x:3,y:1},{x:3,y:3},{x:1,y:3}], hint: "It's a small 2x2 square in the bottom left.", explanation: "Step 1: Plot bottom corners (1,1) and (3,1).\nStep 2: Plot top corners (1,3) and (3,3).\nStep 3: Connect them to form a square." }
+          ]
+        }
+      ]
+    },
+    {
+      id: "topic3", number: "Topic 3", title: "Fractions & Geometry",
+      subtitle: "Shade shapes and rotate angles visually",
+      color: "topic-3", icon: "📐",
+      lessons: [
+        {
+          id: "3-1", title: "Shading Fractions",
+          explanation: [
+            { title: "What is a Fraction?", body: "A fraction shows part of a whole. The bottom number (denominator) is how many total pieces. The top number (numerator) is how many pieces you take.", example: "In 3/4, the shape is cut into 4 pieces.\nYou take 3 of them. So you shade 3 pieces." },
+            { title: "Shading", body: "Click the pieces of the shape to shade them. Make sure you shade exactly the right amount!", example: "For 1/2, cut into 2, shade 1.\nFor 2/3, cut into 3, shade 2." }
+          ],
+          questions: [
+            { type: "fraction", question: "Shade the circle to show <strong>1/2</strong> (One half).", target: 1, total: 2, hint: "The circle is cut into 2 pieces. Click 1 piece to shade it.", explanation: "Step 1: The bottom number is 2. There are 2 total pieces.\nStep 2: The top number is 1. You need to shade 1 piece.\nStep 3: Click 1 slice to shade it." },
+            { type: "fraction", question: "Shade the bar to show <strong>3/4</strong> (Three quarters).", target: 3, total: 4, hint: "The bar is cut into 4 pieces. Click 3 pieces.", explanation: "Step 1: 4 total pieces.\nStep 2: 3 pieces to shade.\nStep 3: Click 3 sections of the bar." },
+            { type: "fraction", question: "Shade the circle to show <strong>2/3</strong> (Two thirds).", target: 2, total: 3, hint: "The circle is cut into 3 pieces. Click 2 pieces.", explanation: "Step 1: 3 total pieces.\nStep 2: 2 pieces to shade.\nStep 3: Click 2 slices of the circle." },
+            { type: "fraction", question: "Shade the bar to show <strong>5/6</strong> (Five sixths).", target: 5, total: 6, hint: "The bar is cut into 6 pieces. Click 5 pieces. Leave one blank!", explanation: "Step 1: 6 total pieces.\nStep 2: 5 pieces to shade.\nStep 3: Click 5 sections of the bar." },
+            { type: "fraction", question: "Shade the circle to show <strong>4/4</strong> (Four quarters = One whole).", target: 4, total: 4, hint: "If the top and bottom numbers are the same, shade everything!", explanation: "Step 1: 4 total pieces.\nStep 2: 4 pieces to shade.\nStep 3: Click all 4 slices to shade the whole circle." }
+          ]
+        },
+        {
+          id: "3-2", title: "Measuring Angles",
+          explanation: [
+            { title: "Angles", body: "An angle is made by two lines meeting at a point. We measure angles in degrees (°).", example: "A right angle is exactly 90°.\nIt looks like the letter L." },
+            { title: "Using the Protractor", body: "Drag the red dot to rotate the angle line. Match the requested degree by reading the protractor numbers.", example: "0° is flat. 90° is straight up. 180° is flat the other way." }
+          ],
+          questions: [
+            { type: "angle", question: "Drag the line to make a <strong>90°</strong> angle (Right Angle).", target: 90, hint: "A 90° angle points straight up like the letter L.", explanation: "Step 1: 90° is a quarter turn.\nStep 2: The line should point straight up.\nStep 3: It forms a perfect 'L' shape." },
+            { type: "angle", question: "Drag the line to make a <strong>45°</strong> angle.", target: 45, hint: "45° is exactly halfway between 0° and 90°.", explanation: "Step 1: 45° is half of 90°.\nStep 2: The line points halfway up.\nStep 3: It's an acute angle (less than 90)." },
+            { type: "angle", question: "Drag the line to make a <strong>180°</strong> angle (Straight Line).", target: 180, hint: "180° is a completely flat, straight line pointing left.", explanation: "Step 1: 180° is a half turn.\nStep 2: The line points straight left.\nStep 3: It forms a straight horizontal line." },
+            { type: "angle", question: "Drag the line to make a <strong>135°</strong> angle.", target: 135, hint: "135° is halfway between 90° (up) and 180° (left).", explanation: "Step 1: 135° is 45° past 90°.\nStep 2: The line points up and to the left.\nStep 3: It's an obtuse angle (more than 90)." },
+            { type: "angle", question: "Drag the line to make a <strong>0°</strong> angle.", target: 0, hint: "0° means the lines are touching each other perfectly on the right.", explanation: "Step 1: 0° means no turn.\nStep 2: The line points straight right.\nStep 3: Both lines overlap completely." }
+          ]
+        }
+      ]
+    }
+,
+    {
+      id: "topic4", number: "Topic 4", title: "Shapes & Geometry",
+      subtitle: "Recognize shapes and learn their names",
+      color: "topic-1", icon: "🔷",
+      lessons: [
+        {
+          id: "4-1", title: "Basic Shapes (Voice)",
+          explanation: [
+            { title: "What is a Shape?", body: "A <strong style='color:var(--gold)'>shape</strong> is the form of an object. We see shapes everywhere!", example: "A ball is a circle.\nA book is a rectangle.\nA slice of pizza is a triangle." },
+            { title: "Naming Shapes", body: "Each shape has a name. Let's learn them by speaking!", example: "Triangle: 3 sides\nSquare: 4 equal sides\nCircle: round, no sides" }
+          ],
+          questions: [
+            { type: "voice", shape: "triangle", question: "What shape is this? Say the name out loud!", answers: ["triangle"], hint: "It has 3 sides.", explanation: "Step 1: Look at the shape.\nStep 2: Count the sides: 1, 2, 3.\nStep 3: A 3-sided shape is a TRIANGLE." },
+            { type: "voice", shape: "square", question: "What shape is this? Say the name!", answers: ["square"], hint: "It has 4 equal sides.", explanation: "Step 1: Look at the shape.\nStep 2: All 4 sides are equal.\nStep 3: This is a SQUARE." },
+            { type: "voice", shape: "circle", question: "What shape is this? Say the name!", answers: ["circle"], hint: "It's round with no corners.", explanation: "Step 1: Look at the shape.\nStep 2: It's round, no corners.\nStep 3: This is a CIRCLE." },
+            { type: "voice", shape: "rectangle", question: "What shape is this? Say the name!", answers: ["rectangle"], hint: "It has 4 sides - 2 long, 2 short.", explanation: "Step 1: Look at the shape.\nStep 2: 2 long sides, 2 short sides.\nStep 3: This is a RECTANGLE." },
+            { type: "voice", shape: "star", question: "What shape is this? Say the name!", answers: ["star"], hint: "It has 5 points.", explanation: "Step 1: Look at the shape.\nStep 2: It has 5 pointy ends.\nStep 3: This is a STAR." }
+          ]
+        },
+        {
+          id: "4-2", title: "More Shapes (Voice)",
+          explanation: [
+            { title: "Polygons", body: "Shapes with many sides are called <strong style='color:var(--gold)'>polygons</strong>.", example: "Pentagon: 5 sides\nHexagon: 6 sides" },
+            { title: "Special Shapes", body: "Some shapes are special, like the rhombus and oval.", example: "Rhombus: like a tilted square\nOval: like a stretched circle" }
+          ],
+          questions: [
+            { type: "voice", shape: "pentagon", question: "What shape is this? Say the name!", answers: ["pentagon"], hint: "It has 5 sides.", explanation: "Step 1: Look at the shape.\nStep 2: Count: 5 sides.\nStep 3: This is a PENTAGON." },
+            { type: "voice", shape: "hexagon", question: "What shape is this? Say the name!", answers: ["hexagon"], hint: "It has 6 sides.", explanation: "Step 1: Look at the shape.\nStep 2: Count: 6 sides.\nStep 3: This is a HEXAGON." },
+            { type: "voice", shape: "rhombus", question: "What shape is this? Say the name!", answers: ["rhombus", "diamond"], hint: "It looks like a tilted square.", explanation: "Step 1: Look at the shape.\nStep 2: 4 equal sides, tilted.\nStep 3: This is a RHOMBUS (or diamond)." },
+            { type: "voice", shape: "oval", question: "What shape is this? Say the name!", answers: ["oval", "ellipse"], hint: "It's like a stretched circle.", explanation: "Step 1: Look at the shape.\nStep 2: Round but stretched.\nStep 3: This is an OVAL." },
+            { type: "voice", shape: "triangle", question: "What shape is this? Say the name!", answers: ["triangle"], hint: "3 sides.", explanation: "Step 1: Count the sides.\nStep 2: 3 sides.\nStep 3: This is a TRIANGLE." }
+          ]
+        }
+      ]
+    },
+    {
+      id: "topic5", number: "Topic 5", title: "Measurement",
+      subtitle: "Learn angles and measurement",
+      color: "topic-2", icon: "📐",
+      lessons: [
+        {
+          id: "5-1", title: "Angles",
+          explanation: [
+            { title: "What is an Angle?", body: "An <strong style='color:var(--gold)'>angle</strong> is made when two lines meet at a point.", example: "Right angle = 90° (like the letter L)\nStraight angle = 180° (flat line)" },
+            { title: "Types of Angles", body: "Angles are measured in degrees (°).", example: "Acute: less than 90°\nRight: exactly 90°\nObtuse: between 90° and 180°" }
+          ],
+          questions: [
+            { type: "angle", question: "Drag the line to make a <strong>90°</strong> angle (Right Angle).", target: 90, hint: "A 90° angle points straight up like the letter L.", explanation: "Step 1: 90° is a quarter turn.\nStep 2: The line should point straight up.\nStep 3: It forms a perfect 'L' shape." },
+            { type: "angle", question: "Drag the line to make a <strong>45°</strong> angle.", target: 45, hint: "45° is exactly halfway between 0° and 90°.", explanation: "Step 1: 45° is half of 90°.\nStep 2: The line points halfway up.\nStep 3: It's an acute angle (less than 90)." },
+            { type: "angle", question: "Drag the line to make a <strong>180°</strong> angle (Straight Line).", target: 180, hint: "180° is a completely flat, straight line pointing left.", explanation: "Step 1: 180° is a half turn.\nStep 2: The line points straight left.\nStep 3: It forms a straight horizontal line." },
+            { type: "angle", question: "Drag the line to make a <strong>135°</strong> angle.", target: 135, hint: "135° is halfway between 90° (up) and 180° (left).", explanation: "Step 1: 135° is 45° past 90°.\nStep 2: The line points up and to the left.\nStep 3: It's an obtuse angle (more than 90)." },
+            { type: "angle", question: "Drag the line to make a <strong>0°</strong> angle.", target: 0, hint: "0° means the lines are touching each other perfectly on the right.", explanation: "Step 1: 0° means no turn.\nStep 2: The line points straight right.\nStep 3: Both lines overlap completely." }
+          ]
+        }
+      ]
+    }
+  ]
+};
+
+// ============ STATE ============
+const State = {
+  studentName: '', currentTopicId: null, currentLessonId: null, currentLesson: null,
+  currentQuestion: 0, score: 0, mistakes: 0, totalAnswered: 0, expPage: 0,
+  answered: false, minigameCount: 0, interactiveState: null, finalRank: 0
+};
+const ENCOURAGEMENTS = ["Amazing!", "Fantastic!", "Brilliant!", "Wonderful!", "Top Class!", "Sensational!", "Goal Machine!", "Unstoppable!", "What a Strike!", "Perfect!"];
+const SAVE_MESSAGES = ["Great try! Here's how:", "Almost there! Watch this:", "Good effort! Let me explain:", "So close! Check this out:"];
+const FAKE_NAMES = ["Alex", "Jordan", "Sam", "Taylor", "Morgan", "Riley", "Casey", "Jamie", "Drew", "Quinn"];
+
+// ============ NAVIGATION ============
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+function goHome() { showScreen('screen-start'); }
+function showTopics() { showScreen('screen-topics'); }
+
+function init() {
+  const container = document.getElementById('particles');
+  for (let i = 0; i < 30; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const size = Math.random() * 4 + 2;
+    p.style.width = size + 'px'; p.style.height = size + 'px';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.animationDelay = Math.random() * 25 + 's';
+    p.style.animationDuration = (Math.random() * 15 + 15) + 's';
+    container.appendChild(p);
+  }
+  document.getElementById('btn-start').addEventListener('click', startGame);
+  renderTopics();
+}
+
+function startGame() {
+  const name = document.getElementById('student-name').value.trim();
+  if (!name) {
+    const input = document.getElementById('student-name');
+    input.style.borderColor = 'var(--crimson)'; input.placeholder = 'Please enter your name!';
+    return;
+  }
+  Sound.init(); Sound.whistle();
+  State.studentName = name;
+  document.getElementById('welcome-name').textContent = name;
+  document.getElementById('mode-welcome-name').textContent = name;
+  showScreen('screen-modes');
+}
+
+function renderTopics() {
+  const grid = document.getElementById('topics-grid');
+  grid.innerHTML = '';
+  GAME_DATA.topics.forEach(topic => {
+    const card = document.createElement('div');
+    card.className = `topic-card ${topic.color}`;
+    card.onclick = () => selectTopic(topic.id);
+    card.innerHTML = `
+      <div class="flex items-start justify-between mb-3">
+        <div class="text-5xl">${topic.icon}</div>
+        <div class="text-xs tracking-widest font-display" style="color: var(--gold);">${topic.number.toUpperCase()}</div>
+      </div>
+      <h2 class="font-display text-2xl md:text-3xl mb-2">${topic.title}</h2>
+      <p class="text-sm mb-4" style="color: var(--muted);">${topic.subtitle}</p>
+      <div class="flex items-center justify-between">
+        <span class="text-sm" style="color: var(--muted);">${topic.lessons.length} interactive lessons</span>
+        <span class="btn-secondary" style="pointer-events:none;">Enter →</span>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+function selectTopic(topicId) {
+  State.currentTopicId = topicId;
+  const topic = GAME_DATA.topics.find(t => t.id === topicId);
+  document.getElementById('lessons-topic-code').textContent = topic.number.toUpperCase();
+  document.getElementById('lessons-topic-title').textContent = topic.title;
+  const grid = document.getElementById('lessons-grid');
+  grid.innerHTML = '';
+  topic.lessons.forEach(lesson => {
+    const card = document.createElement('div');
+    card.className = 'lesson-card';
+    card.onclick = () => selectLesson(topic.id, lesson.id);
+    card.innerHTML = `
+      <div class="font-display text-2xl mb-2" style="color: var(--gold);">${lesson.id}</div>
+      <h3 class="font-display text-lg mb-3" style="line-height: 1.3;">${lesson.title}</h3>
+      <div class="text-xs" style="color: var(--muted);">5 interactive questions</div>`;
+    grid.appendChild(card);
+  });
+  showScreen('screen-lessons');
+}
+
+function selectLesson(topicId, lessonId) {
+  State.currentTopicId = topicId; State.currentLessonId = lessonId;
+  const topic = GAME_DATA.topics.find(t => t.id === topicId);
+  const lesson = topic.lessons.find(l => l.id === lessonId);
+  State.currentLesson = lesson; State.expPage = 0;
+  document.getElementById('exp-lesson-code').textContent = 'LESSON ' + lesson.id;
+  document.getElementById('exp-lesson-title').textContent = lesson.title;
+  document.getElementById('exp-page-total').textContent = lesson.explanation.length;
+  renderExplanation();
+  showScreen('screen-explanation');
+}
+
+function renderExplanation() {
+  const lesson = State.currentLesson;
+  const page = lesson.explanation[State.expPage];
+  document.getElementById('exp-page-num').textContent = State.expPage + 1;
+  document.getElementById('explanation-content').innerHTML = `
+    <h3>${page.title}</h3>
+    <div style="color: var(--text); font-size: 1.1rem; line-height: 1.6;">${page.body}</div>
+    ${page.example ? `<div class="example-box"><strong style="color: var(--gold);">Example:</strong><br><pre style="white-space: pre-wrap; margin: 0.5rem 0 0; font-family: inherit;">${page.example}</pre></div>` : ''}`;
+  document.getElementById('exp-prev').style.visibility = State.expPage > 0 ? 'visible' : 'hidden';
+  const isLast = State.expPage === lesson.explanation.length - 1;
+  document.getElementById('exp-next').textContent = isLast ? 'Start Match →' : 'Next →';
+}
+
+function prevExpPage() { if (State.expPage > 0) { State.expPage--; renderExplanation(); } }
+function nextExpPage() {
+  if (State.expPage < State.currentLesson.explanation.length - 1) { State.expPage++; renderExplanation(); }
+  else { startQuiz(); }
+}
+
+// ============ QUIZ & INTERACTIVE CANVAS ============
+function startQuiz() {
+  State.currentQuestion = 0; State.score = 0; State.mistakes = 0; State.totalAnswered = 0;
+  document.getElementById('q-total').textContent = State.currentLesson.questions.length;
+  document.getElementById('score-display').textContent = '0';
+  showScreen('screen-quiz');
+  setupFieldCanvas(); drawIdleField();
+  showQuestion();
+}
+
+function showQuestion() {
+  const lesson = State.currentLesson;
+  const qData = lesson.questions[State.currentQuestion];
+  State.answered = false;
+  document.getElementById('q-current').textContent = State.currentQuestion + 1;
+  document.getElementById('progress-fill').style.width = ((State.currentQuestion) / lesson.questions.length * 100) + '%';
+  document.getElementById('question-text').innerHTML = qData.question;
+  document.getElementById('explanation-box').style.display = 'none';
+  document.getElementById('btn-next').classList.add('hidden');
+  document.getElementById('btn-check').classList.remove('hidden');
+  document.getElementById('btn-hint').style.display = 'inline-block';
+  document.getElementById('quiz-action-bar').classList.remove('hidden');
+  
+  setupInteraction(qData);
+  drawIdleField();
+
+  // Show/hide voice speak button + clean up voice input
+  const voiceBtn = document.getElementById('btn-speak');
+  var oldVoiceInput = document.getElementById('voice-input-wrap');
+  if (qData.type === 'voice') {
+    voiceBtn.classList.remove('hidden');
+  } else {
+    voiceBtn.classList.add('hidden');
+    if (oldVoiceInput) oldVoiceInput.remove();
+  }
+
+  // Scroll to top to ensure question is visible
+  window.scrollTo(0, 0);
+}
+
+function setupInteraction(qData) {
+  const canvas = document.getElementById('interactive-canvas');
+  const ctx = canvas.getContext('2d');
+  
+  // CRITICAL FIX: Clear ALL event handlers from previous question
+  canvas.onclick = null;
+  canvas.onmousedown = null;
+  canvas.onmousemove = null;
+  canvas.onmouseup = null;
+  canvas.onmouseleave = null;
+  canvas.ontouchstart = null;
+  canvas.ontouchmove = null;
+  canvas.ontouchend = null;
+  
+  // CRITICAL FIX: Reset canvas size and transform completely
+  canvas.width = canvas.offsetWidth * 2;
+  canvas.height = canvas.offsetHeight * 2;
+  ctx.setTransform(2, 0, 0, 2, 0, 0);
+  ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+  
+  State.interactiveState = { type: qData.type, canvas, ctx, qData, userAnswer: null };
+  
+  if (qData.type === 'clock') setupClock(canvas, ctx, qData);
+  else if (qData.type === 'point' || qData.type === 'multi_point') setupGrid(canvas, ctx, qData);
+  else if (qData.type === 'fraction') setupFraction(canvas, ctx, qData);
+  else if (qData.type === 'angle') setupAngle(canvas, ctx, qData);
+  else if (qData.type === 'voice') setupVoice(canvas, ctx, qData);
+}
+
+// --- CLOCK INTERACTION ---
+function setupClock(canvas, ctx, qData) {
+  const w = canvas.offsetWidth, h = canvas.offsetHeight;
+  const cx = w / 2, cy = h / 2;
+  const r = Math.min(w, h) / 2 - 20;
+  let hourAngle = 0; // radians
+  let minAngle = 0;
+  let dragging = null;
+  
+  State.interactiveState.getValues = () => {
+    let m = Math.round((minAngle / (Math.PI * 2)) * 12) * 5 % 60;
+    let h = Math.round((hourAngle / (Math.PI * 2)) * 12) % 12;
+    if (h <= 0) h += 12;
+    return { h, m };
+  };
+  
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#f8f9fa';
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#0a1428'; ctx.lineWidth = 5; ctx.stroke();
+    
+    for (let i = 0; i < 12; i++) {
+      const ang = (i / 12) * Math.PI * 2 - Math.PI / 2;
+      const x1 = cx + Math.cos(ang) * (r - 15), y1 = cy + Math.sin(ang) * (r - 15);
+      const x2 = cx + Math.cos(ang) * r, y2 = cy + Math.sin(ang) * r;
+      ctx.strokeStyle = '#0a1428'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      ctx.fillStyle = '#0a1428'; ctx.font = 'bold 18px Outfit'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(i === 0 ? 12 : i, cx + Math.cos(ang) * (r - 30), cy + Math.sin(ang) * (r - 30));
+    }
+    
+    ctx.strokeStyle = '#0a1428'; ctx.lineWidth = 8; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(hourAngle - Math.PI/2) * r * 0.5, cy + Math.sin(hourAngle - Math.PI/2) * r * 0.5);
+    ctx.stroke();
+    
+    ctx.strokeStyle = '#ff6b35'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(minAngle - Math.PI/2) * r * 0.8, cy + Math.sin(minAngle - Math.PI/2) * r * 0.8);
+    ctx.stroke();
+    
+    ctx.fillStyle = '#0a1428';
+    ctx.beginPath(); ctx.arc(cx, cy, 8, 0, Math.PI * 2); ctx.fill();
+    
+    const hx = cx + Math.cos(hourAngle - Math.PI/2) * r * 0.5;
+    const hy = cy + Math.sin(hourAngle - Math.PI/2) * r * 0.5;
+    const mx = cx + Math.cos(minAngle - Math.PI/2) * r * 0.8;
+    const my = cy + Math.sin(minAngle - Math.PI/2) * r * 0.8;
+    
+    ctx.fillStyle = 'rgba(10,20,40,0.3)'; ctx.beginPath(); ctx.arc(hx, hy, 16, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,107,53,0.3)'; ctx.beginPath(); ctx.arc(mx, my, 16, 0, Math.PI*2); ctx.fill();
+  }
+  
+  function getMousePos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+    const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+    return { x, y };
+  }
+  
+  const onDown = (e) => {
+    e.preventDefault();
+    const {x, y} = getMousePos(e);
+    const hx = cx + Math.cos(hourAngle - Math.PI/2) * r * 0.5;
+    const hy = cy + Math.sin(hourAngle - Math.PI/2) * r * 0.5;
+    const mx = cx + Math.cos(minAngle - Math.PI/2) * r * 0.8;
+    const my = cy + Math.sin(minAngle - Math.PI/2) * r * 0.8;
+    
+    if (Math.hypot(x-mx, y-my) < 30) dragging = 'min';
+    else if (Math.hypot(x-hx, y-hy) < 30) dragging = 'hour';
+  };
+  
+  const onMove = (e) => {
+    if (!dragging) return;
+    e.preventDefault();
+    const {x, y} = getMousePos(e);
+    let angle = Math.atan2(y - cy, x - cx) + Math.PI/2;
+    if (angle < 0) angle += Math.PI * 2;
+    if (dragging === 'hour') hourAngle = angle;
+    else minAngle = angle;
+    draw();
+  };
+  
+  const onUp = () => { dragging = null; };
+  
+  canvas.onmousedown = onDown; canvas.onmousemove = onMove; canvas.onmouseup = onUp; canvas.onmouseleave = onUp;
+  canvas.ontouchstart = onDown; canvas.ontouchmove = onMove; canvas.ontouchend = onUp;
+  
+  draw();
+}
+
+// --- GRID INTERACTION (ENHANCED VISIBILITY) ---
+function setupGrid(canvas, ctx, qData) {
+  const w = canvas.offsetWidth, h = canvas.offsetHeight;
+  const size = Math.min(w, h);
+  const cellSize = size / 8;
+  const offsetX = (w - cellSize * 7) / 2;
+  const offsetY = (h - cellSize * 7) / 2;
+  
+  let points = [];
+  const isMulti = qData.type === 'multi_point';
+  
+  State.interactiveState.getValues = () => points.map(p => ({x: p.gx, y: p.gy}));
+  
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+    
+    // Background for grid area
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.fillRect(offsetX, offsetY, cellSize * 7, cellSize * 7);
+    
+    // Draw grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 7; i++) {
+      ctx.beginPath(); ctx.moveTo(offsetX + i * cellSize, offsetY); ctx.lineTo(offsetX + i * cellSize, offsetY + 7 * cellSize); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(offsetX, offsetY + i * cellSize); ctx.lineTo(offsetX + 7 * cellSize, offsetY + i * cellSize); ctx.stroke();
+    }
+    
+    // Axes (X and Y) - Thick Yellow
+    ctx.strokeStyle = '#ffd60a'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(offsetX, offsetY + 7 * cellSize); ctx.lineTo(offsetX + 7 * cellSize, offsetY + 7 * cellSize); ctx.stroke(); // X axis
+    ctx.beginPath(); ctx.moveTo(offsetX, offsetY); ctx.lineTo(offsetX, offsetY + 7 * cellSize); ctx.stroke(); // Y axis
+    
+    // Numbers and Ticks
+    ctx.fillStyle = '#ffffff'; 
+    ctx.font = 'bold 16px Outfit'; 
+    ctx.textAlign = 'center'; 
+    ctx.textBaseline = 'middle';
+    
+    for (let i = 0; i <= 6; i++) {
+      if (i > 0) {
+        // X axis numbers (bottom)
+        const tx = offsetX + i * cellSize;
+        const ty = offsetY + 7 * cellSize;
+        ctx.strokeStyle = '#ffd60a'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(tx, ty + 6); ctx.stroke(); // Tick
+        ctx.fillText(i, tx, ty + 18); // Number
+        
+        // Y axis numbers (left)
+        const ty2 = offsetY + (7 - i) * cellSize;
+        ctx.beginPath(); ctx.moveTo(offsetX, ty2); ctx.lineTo(offsetX - 6, ty2); ctx.stroke(); // Tick
+        ctx.fillText(i, offsetX - 18, ty2); // Number
+      }
+    }
+    
+    // Axis Labels (x and y)
+    ctx.fillStyle = '#ffd60a';
+    ctx.font = 'bold italic 20px Outfit';
+    ctx.fillText('x', offsetX + 7 * cellSize + 15, offsetY + 7 * cellSize);
+    ctx.fillText('y', offsetX, offsetY - 15);
+    
+    // Draw points
+    points.forEach(p => {
+      ctx.fillStyle = '#ff6b35';
+      ctx.beginPath(); ctx.arc(p.x, p.y, 12, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'white'; ctx.lineWidth = 2; ctx.stroke();
+    });
+    
+    // Connect lines if multi
+    if (isMulti && points.length > 1) {
+      ctx.strokeStyle = '#ffd60a'; ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+      if (points.length === qData.target.length) ctx.closePath();
+      ctx.stroke();
+    }
+  }
+  
+  canvas.onclick = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    const gx = Math.round((x - offsetX) / cellSize);
+    const gy = 7 - Math.round((y - offsetY) / cellSize);
+    
+    if (gx >= 0 && gx <= 6 && gy >= 0 && gy <= 6) {
+      const px = offsetX + gx * cellSize;
+      const py = offsetY + (7 - gy) * cellSize;
+      
+      const exists = points.find(p => p.gx === gx && p.gy === gy);
+      if (exists) {
+        points = points.filter(p => p !== exists);
+      } else {
+        if (isMulti && points.length >= qData.target.length) points.shift();
+        points.push({ x: px, y: py, gx, gy });
+        Sound.click();
+      }
+      draw();
+    }
+  };
+  
+  draw();
+}
+
+// --- FRACTION INTERACTION ---
+function setupFraction(canvas, ctx, qData) {
+  const w = canvas.offsetWidth, h = canvas.offsetHeight;
+  const total = qData.total;
+  const shapeType = qData.question.includes("circle") ? 'circle' : 'bar';
+  let shaded = new Array(total).fill(false);
+  
+  State.interactiveState.getValues = () => shaded.filter(s => s).length;
+  
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+    if (shapeType === 'circle') {
+      const cx = w / 2, cy = h / 2;
+      const r = Math.min(w, h) / 2 - 30;
+      for (let i = 0; i < total; i++) {
+        const startAng = (i / total) * Math.PI * 2 - Math.PI / 2;
+        const endAng = ((i + 1) / total) * Math.PI * 2 - Math.PI / 2;
+        ctx.beginPath(); ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, r, startAng, endAng);
+        ctx.closePath();
+        ctx.fillStyle = shaded[i] ? '#ff6b35' : 'rgba(255,255,255,0.1)';
+        ctx.fill();
+        ctx.strokeStyle = 'white'; ctx.lineWidth = 2; ctx.stroke();
+      }
+    } else {
+      const padding = 20;
+      const bw = w - padding * 2;
+      const bh = h - padding * 2;
+      const segW = bw / total;
+      for (let i = 0; i < total; i++) {
+        ctx.fillStyle = shaded[i] ? '#ff6b35' : 'rgba(255,255,255,0.1)';
+        ctx.fillRect(padding + i * segW, padding, segW, bh);
+        ctx.strokeStyle = 'white'; ctx.lineWidth = 2;
+        ctx.strokeRect(padding + i * segW, padding, segW, bh);
+      }
+    }
+  }
+  
+  canvas.onclick = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    let idx = -1;
+    if (shapeType === 'circle') {
+      const cx = w / 2, cy = h / 2;
+      const r = Math.min(w, h) / 2 - 30;
+      let ang = Math.atan2(y - cy, x - cx) + Math.PI / 2;
+      if (ang < 0) ang += Math.PI * 2;
+      if (Math.hypot(x-cx, y-cy) <= r + 10) {
+        idx = Math.floor((ang / (Math.PI * 2)) * total);
+        if (idx >= total) idx = total - 1;
+      }
+    } else {
+      const padding = 20;
+      const bw = w - padding * 2;
+      const segW = bw / total;
+      if (y > padding && y < h - padding && x > padding && x < w - padding) {
+        idx = Math.floor((x - padding) / segW);
+        if (idx >= total) idx = total - 1;
+      }
+    }
+    if (idx >= 0 && idx < total) {
+      shaded[idx] = !shaded[idx];
+      Sound.click();
+      draw();
+    }
+  };
+  canvas.ontouchstart = (e) => {
+    e.preventDefault();
+    if (e.touches.length === 0) return;
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    let idx = -1;
+    if (shapeType === 'circle') {
+      const cx = w / 2, cy = h / 2;
+      const r = Math.min(w, h) / 2 - 30;
+      let ang = Math.atan2(y - cy, x - cx) + Math.PI / 2;
+      if (ang < 0) ang += Math.PI * 2;
+      if (Math.hypot(x-cx, y-cy) <= r + 10) {
+        idx = Math.floor((ang / (Math.PI * 2)) * total);
+        if (idx >= total) idx = total - 1;
+      }
+    } else {
+      const padding = 20;
+      const bw = w - padding * 2;
+      const segW = bw / total;
+      if (y > padding && y < h - padding && x > padding && x < w - padding) {
+        idx = Math.floor((x - padding) / segW);
+        if (idx >= total) idx = total - 1;
+      }
+    }
+    if (idx >= 0 && idx < total) {
+      shaded[idx] = !shaded[idx];
+      Sound.click();
+      draw();
+    }
+  };
+  
+  draw();
+}
+
+// --- ANGLE INTERACTION ---
+function setupAngle(canvas, ctx, qData) {
+  const w = canvas.offsetWidth, h = canvas.offsetHeight;
+  const cx = w / 2, cy = h / 2 + 40;
+  const r = 120;
+  let currentAngle = 0;
+  
+  State.interactiveState.getValues = () => Math.round(currentAngle);
+  
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+    
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, 0); ctx.stroke();
+    
+    ctx.strokeStyle = 'white'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(cx - r, cy); ctx.lineTo(cx, cy); ctx.stroke();
+    
+    const rad = (currentAngle - 180) * Math.PI / 180;
+    const ex = cx + Math.cos(rad) * r;
+    const ey = cy + Math.sin(rad) * r;
+    ctx.strokeStyle = '#ff6b35'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey); ctx.stroke();
+    
+    ctx.fillStyle = '#ffd60a';
+    ctx.beginPath(); ctx.arc(ex, ey, 14, 0, Math.PI * 2); ctx.fill();
+    
+    ctx.fillStyle = '#ffd60a'; ctx.font = 'bold 24px Russo One'; ctx.textAlign = 'center';
+    ctx.fillText(Math.round(currentAngle) + '°', cx, cy - r - 20);
+    
+    for (let a = 0; a <= 180; a += 15) {
+      const radM = (a - 180) * Math.PI / 180;
+      const x1 = cx + Math.cos(radM) * r;
+      const y1 = cy + Math.sin(radM) * r;
+      const x2 = cx + Math.cos(radM) * (r - 10);
+      const y2 = cy + Math.sin(radM) * (r - 10);
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      if (a % 45 === 0) {
+        ctx.fillStyle = 'white'; ctx.font = 'bold 14px Outfit';
+        ctx.fillText(a, cx + Math.cos(radM) * (r - 25), cy + Math.sin(radM) * (r - 25));
+      }
+    }
+  }
+  
+  let dragging = false;
+  
+  function getMousePos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+    const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+    return { x, y };
+  }
+  
+  const onDown = (e) => {
+    e.preventDefault();
+    const {x, y} = getMousePos(e);
+    const rad = (currentAngle - 180) * Math.PI / 180;
+    const ex = cx + Math.cos(rad) * r, ey = cy + Math.sin(rad) * r;
+    if (Math.hypot(x-ex, y-ey) < 30) dragging = true;
+  };
+  
+  const onMove = (e) => {
+    if (!dragging) return;
+    e.preventDefault();
+    const {x, y} = getMousePos(e);
+    let ang = Math.atan2(y - cy, x - cx) * 180 / Math.PI + 180;
+    if (ang < 0) ang += 360;
+    currentAngle = Math.max(0, Math.min(180, ang));
+    draw();
+  };
+  
+  const onUp = () => { dragging = false; };
+  
+  canvas.onmousedown = onDown; canvas.onmousemove = onMove; canvas.onmouseup = onUp; canvas.onmouseleave = onUp;
+  canvas.ontouchstart = onDown; canvas.ontouchmove = onMove; canvas.ontouchend = onUp;
+  
+  draw();
+}
+
+
+// --- VOICE INTERACTION (Web Speech API for shapes) ---
+function setupVoice(canvas, ctx, qData) {
+  const w = canvas.offsetWidth, h = canvas.offsetHeight;
+  State.interactiveState.recognition = null;
+  State.interactiveState.spokenText = '';
+  State.interactiveState.isListening = false;
+  State.interactiveState.voiceSupported = false;
+  State.interactiveState.getValues = () => State.interactiveState.spokenText;
+
+  function drawShape() {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.fillRect(0, 0, w, h);
+    const cx = w / 2, cy = h / 2 - 20;
+    const size = Math.min(w, h) * 0.22;
+    ctx.strokeStyle = '#ffd60a';
+    ctx.lineWidth = 5;
+    ctx.fillStyle = 'rgba(255,107,53,0.25)';
+
+    if (qData.shape === 'triangle') {
+      ctx.beginPath(); ctx.moveTo(cx, cy - size); ctx.lineTo(cx - size, cy + size * 0.7); ctx.lineTo(cx + size, cy + size * 0.7); ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else if (qData.shape === 'square') {
+      ctx.fillRect(cx - size, cy - size, size * 2, size * 2); ctx.strokeRect(cx - size, cy - size, size * 2, size * 2);
+    } else if (qData.shape === 'rectangle') {
+      ctx.fillRect(cx - size * 1.4, cy - size * 0.7, size * 2.8, size * 1.4); ctx.strokeRect(cx - size * 1.4, cy - size * 0.7, size * 2.8, size * 1.4);
+    } else if (qData.shape === 'circle') {
+      ctx.beginPath(); ctx.arc(cx, cy, size, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    } else if (qData.shape === 'pentagon') {
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2 - Math.PI / 2; const px = cx + Math.cos(a) * size, py = cy + Math.sin(a) * size; if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else if (qData.shape === 'hexagon') {
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 - Math.PI / 2; const px = cx + Math.cos(a) * size, py = cy + Math.sin(a) * size; if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else if (qData.shape === 'star') {
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2 - Math.PI / 2; const r = i % 2 === 0 ? size : size * 0.45; const px = cx + Math.cos(a) * r, py = cy + Math.sin(a) * r; if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else if (qData.shape === 'oval') {
+      ctx.beginPath(); ctx.ellipse(cx, cy, size * 1.3, size * 0.75, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    } else if (qData.shape === 'rhombus') {
+      ctx.beginPath(); ctx.moveTo(cx, cy - size); ctx.lineTo(cx + size * 0.8, cy); ctx.lineTo(cx, cy + size); ctx.lineTo(cx - size * 0.8, cy); ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+
+    // Status text
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 18px Outfit';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    let status = '';
+    if (State.interactiveState.isListening) {
+      status = '🎤 Listening... Say the shape name!';
+      ctx.fillStyle = '#22c55e';
+    } else if (State.interactiveState.spokenText) {
+      status = 'You said: ' + State.interactiveState.spokenText;
+      ctx.fillStyle = '#ffd60a';
+    } else if (!State.interactiveState.voiceSupported) {
+      status = 'Voice not available - Type the name below';
+      ctx.fillStyle = '#ef4444';
+    } else {
+      status = 'Press "Speak" or type the name below';
+      ctx.fillStyle = '#94a3b8';
+    }
+    ctx.fillText(status, cx, cy + size + 45);
+  }
+
+  drawShape();
+
+  // --- Build text input fallback BELOW the canvas ---
+  var quizCard = canvas.parentElement;
+  // Remove old voice input if exists
+  var oldInput = document.getElementById('voice-input-wrap');
+  if (oldInput) oldInput.remove();
+
+  var inputWrap = document.createElement('div');
+  inputWrap.id = 'voice-input-wrap';
+  inputWrap.style.cssText = 'margin-top: 12px; display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap;';
+  
+  var textInput = document.createElement('input');
+  textInput.type = 'text';
+  textInput.id = 'voice-text-input';
+  textInput.placeholder = 'Type the shape name here...';
+  textInput.style.cssText = 'flex: 1; max-width: 300px; padding: 12px 16px; font-size: 18px; border-radius: 10px; border: 2px solid var(--border); background: var(--card); color: var(--text); outline: none; font-family: Outfit;';
+  
+  var submitBtn = document.createElement('button');
+  submitBtn.textContent = 'Submit';
+  submitBtn.className = 'btn-primary';
+  submitBtn.style.cssText = 'padding: 12px 24px; font-size: 16px;';
+  submitBtn.onclick = function() {
+    var val = textInput.value.trim();
+    if (val) {
+      State.interactiveState.spokenText = val;
+      drawShape();
+      Sound.click();
+    }
+  };
+  
+  textInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); submitBtn.click(); }
+  });
+  
+  inputWrap.appendChild(textInput);
+  inputWrap.appendChild(submitBtn);
+  quizCard.appendChild(inputWrap);
+  
+  // Focus the input
+  setTimeout(function() { textInput.focus(); }, 200);
+
+  // --- Set up speech recognition ---
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SpeechRecognition) {
+    State.interactiveState.voiceSupported = true;
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 5;
+    State.interactiveState.recognition = recognition;
+
+    recognition.onresult = function(event) {
+      let bestMatch = '';
+      for (let i = 0; i < event.results[0].length; i++) {
+        const transcript = event.results[0][i].transcript.trim().toLowerCase();
+        if (qData.answers.some(function(a) { return transcript.includes(a.toLowerCase()); })) {
+          bestMatch = transcript;
+          break;
+        }
+      }
+      if (!bestMatch) bestMatch = event.results[0][0].transcript.trim();
+      State.interactiveState.spokenText = bestMatch;
+      State.interactiveState.isListening = false;
+      drawShape();
+      // Also fill the text input
+      if (textInput) textInput.value = bestMatch;
+    };
+    recognition.onerror = function(event) {
+      State.interactiveState.isListening = false;
+      drawShape();
+      // Show specific error message on canvas
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        ctx.fillStyle = '#ef4444';
+        ctx.font = 'bold 14px Outfit';
+        ctx.textAlign = 'center';
+        ctx.fillText('Microphone blocked. Use the text box below.', cx, cy + size + 75);
+      } else if (event.error === 'no-speech') {
+        ctx.fillStyle = '#ffd60a';
+        ctx.font = 'bold 14px Outfit';
+        ctx.textAlign = 'center';
+        ctx.fillText('No speech detected. Try again or type below.', cx, cy + size + 75);
+      }
+    };
+    recognition.onend = function() {
+      State.interactiveState.isListening = false;
+      drawShape();
+    };
+  } else {
+    State.interactiveState.voiceSupported = false;
+    drawShape();
+  }
+
+  // Expose startListening function for the Speak button
+  window.startVoiceListening = function() {
+    if (!State.interactiveState.recognition) {
+      // Fallback: focus the text input
+      var ti = document.getElementById('voice-text-input');
+      if (ti) { ti.focus(); ti.placeholder = 'Voice not supported - type here!'; }
+      return;
+    }
+    State.interactiveState.spokenText = '';
+    State.interactiveState.isListening = true;
+    if (textInput) textInput.value = '';
+    drawShape();
+    try {
+      State.interactiveState.recognition.start();
+    } catch(e) {
+      State.interactiveState.isListening = false;
+      drawShape();
+      // Fallback: focus text input
+      if (textInput) {
+        textInput.focus();
+        textInput.placeholder = 'Voice failed - type the name here!';
+      }
+    }
+  };
+}
+
+function checkInteractiveAnswer() {
+  if (State.answered) return;
+  State.answered = true;
+  const qData = State.currentLesson.questions[State.currentQuestion];
+  const userVal = State.interactiveState.getValues();
+  let isCorrect = false;
+  
+  if (qData.type === 'clock') {
+    isCorrect = userVal.h === qData.target.h && Math.abs(userVal.m - qData.target.m) <= 5;
+  } else if (qData.type === 'point') {
+    isCorrect = userVal.length === 1 && userVal[0].x === qData.target[0].x && userVal[0].y === qData.target[0].y;
+  } else if (qData.type === 'multi_point') {
+    isCorrect = qData.target.every(t => userVal.some(u => u.x === t.x && u.y === t.y)) && userVal.length === qData.target.length;
+  } else if (qData.type === 'fraction') {
+    isCorrect = userVal === qData.target;
+  } else if (qData.type === 'angle') {
+    isCorrect = Math.abs(userVal - qData.target) <= 5;
+  } else if (qData.type === 'voice') {
+    // Check if spoken text contains any accepted answer
+    if (!userVal || userVal.length === 0) {
+      isCorrect = false;
+    } else {
+      const spoken = userVal.toLowerCase().trim();
+      isCorrect = qData.answers.some(a => spoken.includes(a.toLowerCase()));
+    }
+  }
+  
+  document.getElementById('btn-check').classList.add('hidden');
+  document.getElementById('btn-hint').style.display = 'none';
+  
+  if (isCorrect) {
+    State.score++; State.totalAnswered++;
+    document.getElementById('score-display').textContent = State.score;
+    animateGoal(true);
+    setTimeout(() => { showGoalOverlay(true); Sound.cheer(); launchConfetti(); }, 800);
+  } else {
+    State.mistakes++; State.totalAnswered++;
+    animateGoal(false);
+    setTimeout(() => { showGoalOverlay(false); Sound.ohOh(); }, 800);
+    setTimeout(() => {
+      const expBox = document.getElementById('explanation-box');
+      expBox.style.display = 'block';
+      const steps = qData.explanation.split('\n');
+      document.getElementById('explanation-steps').innerHTML = steps.map((s, i) => 
+        `<div class="step-item"><div class="step-number">${i+1}</div><div>${s.replace(/^Step \d+:\s*/, '')}</div></div>`
+      ).join('');
+      // Scroll to explanation smoothly
+      expBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 1800);
+  }
+  
+  setTimeout(() => {
+    document.getElementById('btn-next').classList.remove('hidden');
+    document.getElementById('btn-next').textContent = State.currentQuestion < State.currentLesson.questions.length - 1 ? 'Next →' : 'See Results →';
+  }, isCorrect ? 2000 : 2200);
+}
+
+function nextQuestion() {
+  Sound.click();
+  State.currentQuestion++;
+  if (State.currentQuestion >= State.currentLesson.questions.length) { showResults(); return; }
+  showQuestion();
+}
+
+function showHint() {
+  Sound.click();
+  document.getElementById('hint-text').innerHTML = State.currentLesson.questions[State.currentQuestion].hint;
+  document.getElementById('hint-modal').classList.add('active');
+}
+function closeHint() { document.getElementById('hint-modal').classList.remove('active'); }
+function exitQuiz() { showTopics(); }
+
+// ============ FOOTBALL ANIMATION ============
+let fieldCanvas, fctx;
+function setupFieldCanvas() {
+  fieldCanvas = document.getElementById('field-canvas');
+  fctx = fieldCanvas.getContext('2d');
+  fieldCanvas.width = fieldCanvas.offsetWidth;
+  fieldCanvas.height = fieldCanvas.offsetHeight;
+}
+function drawIdleField() {
+  if (!fctx) return;
+  const w = fieldCanvas.width, h = fieldCanvas.height;
+  const grad = fctx.createLinearGradient(0, 0, 0, h); grad.addColorStop(0, '#0d4d2e'); grad.addColorStop(1, '#1a7a4f');
+  fctx.fillStyle = grad; fctx.fillRect(0, 0, w, h);
+  fctx.strokeStyle = 'rgba(255,255,255,0.2)'; fctx.lineWidth = 1;
+  for (let i = 0; i < 5; i++) { fctx.beginPath(); fctx.moveTo(0, (h/5) * i); fctx.lineTo(w, (h/5) * i); fctx.stroke(); }
+  drawGoal(w, h); drawBall(w/2, h - 25);
+}
+function drawGoal(w, h) {
+  const gw = w * 0.35, gx = (w - gw) / 2, gy = 10, gh = h * 0.45;
+  fctx.strokeStyle = 'white'; fctx.lineWidth = 4;
+  fctx.beginPath(); fctx.moveTo(gx, gy); fctx.lineTo(gx, gy + gh); fctx.lineTo(gx + gw, gy + gh); fctx.lineTo(gx + gw, gy); fctx.stroke();
+}
+function drawBall(x, y) {
+  fctx.fillStyle = 'white'; fctx.beginPath(); fctx.arc(x, y, 11, 0, Math.PI * 2); fctx.fill();
+  fctx.strokeStyle = 'black'; fctx.lineWidth = 1.5; fctx.stroke();
+}
+function animateGoal(isCorrect) {
+  const w = fieldCanvas.width, h = fieldCanvas.height;
+  const startX = w / 2, startY = h - 25;
+  const targetX = w / 2 + (Math.random() - 0.5) * 60;
+  const targetY = isCorrect ? h * 0.25 : h * 0.4;
+  let frame = 0; const totalFrames = 40;
+  function loop() {
+    frame++;
+    const t = frame / totalFrames;
+    const eased = 1 - Math.pow(1 - t, 3);
+    const cx = startX + (targetX - startX) * eased;
+    const cy = startY + (targetY - startY) * eased - Math.sin(t * Math.PI) * 30;
+    drawIdleField();
+    drawBall(cx, cy);
+    if (frame < totalFrames) requestAnimationFrame(loop);
+  }
+  loop();
+}
+function showGoalOverlay(isCorrect) {
+  const overlay = document.getElementById('goal-overlay');
+  const txt = document.getElementById('goal-text-big');
+  const msg = document.getElementById('goal-message');
+  if (isCorrect) {
+    txt.innerHTML = '<div class="goal-text">GOAL!</div>';
+    msg.textContent = ENCOURAGEMENTS[Math.floor(Math.random() * ENCOURAGEMENTS.length)];
+    msg.style.color = 'var(--gold)';
+  } else {
+    txt.innerHTML = '<div class="save-text">SAVED!</div>';
+    msg.textContent = SAVE_MESSAGES[Math.floor(Math.random() * SAVE_MESSAGES.length)];
+    msg.style.color = '#ef4444';
+  }
+  overlay.classList.add('active');
+  setTimeout(() => overlay.classList.remove('active'), 1500);
+}
+function launchConfetti() {
+  const colors = ['#ffd60a', '#ff6b35', '#22c55e', '#ffffff'];
+  for (let i = 0; i < 40; i++) {
+    const c = document.createElement('div');
+    c.className = 'confetti';
+    c.style.background = colors[Math.floor(Math.random() * colors.length)];
+    c.style.left = (50 + (Math.random() - 0.5) * 30) + '%'; c.style.top = '50%';
+    document.body.appendChild(c);
+    const vx = (Math.random() - 0.5) * 400, vy = Math.random() * 400 + 100;
+    c.animate([{ transform: 'translate(0,0)', opacity: 1 }, { transform: `translate(${vx}px, ${vy}px)`, opacity: 0 }], { duration: 1500, easing: 'cubic-bezier(0.5, 0.5, 0.5, 1)' });
+    setTimeout(() => c.remove(), 1500);
+  }
+}
+
+
+// ============ GHOST MODE ============
+function startGhostMode() {
+  Sound.click();
+  showScreen('screen-ghost');
+  renderGhostHome();
+}
+
+function renderGhostHome() {
+  const content = document.getElementById('ghost-content');
+  const ghosts = JSON.parse(localStorage.getItem('aidGhosts') || '[]');
+
+  let html = '<div class="ghost-card">';
+  html += '<h3>👻 How Ghost Mode Works</h3>';
+  html += '<p style="color: var(--muted); margin-bottom: 1rem;">1. Student A answers 10 questions against the clock.<br>2. Their answers + time are saved as a "ghost".<br>3. Student B races the same questions.<br>4. Whoever gets more correct (or is faster if tied) wins!</p>';
+  html += '<button class="btn-primary" onclick="startGhostRun()">Start My Run →</button>';
+  html += '</div>';
+
+  if (ghosts.length > 0) {
+    html += '<div class="ghost-card">';
+    html += '<h3>🏆 Recorded Ghosts</h3>';
+    html += '<p style="color: var(--muted); margin-bottom: 1rem;">Challenge a friend&#39;s ghost!</p>';
+    ghosts.slice().reverse().forEach((g, idx) => {
+      const realIdx = ghosts.length - 1 - idx;
+      html += '<div style="background: var(--bg); padding: 1rem; border-radius: 10px; margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">';
+      html += '<div><strong style="color: var(--gold);">' + g.name + '</strong> — ' + g.score + '/10 correct in ' + g.timeStr + '</div>';
+      html += '<button class="btn-secondary" onclick="challengeGhost(' + realIdx + ')">Challenge →</button>';
+      html += '</div>';
+    });
+    html += '<button class="btn-secondary" style="margin-top: 0.5rem;" onclick="clearGhosts()">Clear All Ghosts</button>';
+    html += '</div>';
+  }
+
+  content.innerHTML = html;
+}
+
+const GHOST_QUESTIONS = [
+  { type: "clock", question: "Show <strong>3:00</strong>.", target: { h: 3, m: 0 }, hint: "Long hand at 12, short hand at 3.", explanation: "Step 1: Minutes = 0, long hand at 12.\nStep 2: Hour = 3, short hand at 3.\nStep 3: Time is 3:00." },
+  { type: "point", question: "Plot the point <strong>(2, 3)</strong>.", target: [{x:2,y:3}], hint: "Right 2, Up 3.", explanation: "Step 1: x=2, move right 2.\nStep 2: y=3, move up 3.\nStep 3: Plot (2, 3)." },
+  { type: "fraction", question: "Shade <strong>1/2</strong> of the circle.", target: 1, total: 2, hint: "2 pieces, shade 1.", explanation: "Step 1: 2 total pieces.\nStep 2: Shade 1 piece.\nStep 3: That's 1/2." },
+  { type: "clock", question: "Show <strong>6:30</strong>.", target: { h: 6, m: 30 }, hint: "Long hand at 6, short hand halfway past 6.", explanation: "Step 1: 30 min, long hand at 6.\nStep 2: Hour 6, short hand halfway past 6.\nStep 3: Time is 6:30." },
+  { type: "point", question: "Plot <strong>(4, 1)</strong>.", target: [{x:4,y:1}], hint: "Right 4, Up 1.", explanation: "Step 1: x=4, right 4.\nStep 2: y=1, up 1.\nStep 3: Plot (4, 1)." },
+  { type: "fraction", question: "Shade <strong>3/4</strong> of the bar.", target: 3, total: 4, hint: "4 pieces, shade 3.", explanation: "Step 1: 4 total pieces.\nStep 2: Shade 3 pieces.\nStep 3: That's 3/4." },
+  { type: "clock", question: "Show <strong>9:00</strong>.", target: { h: 9, m: 0 }, hint: "Long hand at 12, short hand at 9.", explanation: "Step 1: Minutes = 0, long hand at 12.\nStep 2: Hour = 9, short hand at 9.\nStep 3: Time is 9:00." },
+  { type: "point", question: "Plot <strong>(0, 4)</strong>.", target: [{x:0,y:4}], hint: "Stay on y-axis, go up 4.", explanation: "Step 1: x=0, stay on y-axis.\nStep 2: y=4, up 4.\nStep 3: Plot (0, 4)." },
+  { type: "fraction", question: "Shade <strong>2/3</strong> of the circle.", target: 2, total: 3, hint: "3 pieces, shade 2.", explanation: "Step 1: 3 total pieces.\nStep 2: Shade 2 pieces.\nStep 3: That's 2/3." },
+  { type: "clock", question: "Show <strong>12:00</strong>.", target: { h: 12, m: 0 }, hint: "Both hands at 12.", explanation: "Step 1: Minutes = 0, long hand at 12.\nStep 2: Hour = 12, short hand at 12.\nStep 3: Time is 12:00." }
+];
+
+let ghostState = { mode: 'record', questions: GHOST_QUESTIONS, startTime: 0, qIndex: 0, score: 0, ghostData: null };
+
+function startGhostRun() {
+  Sound.whistle();
+  ghostState.mode = 'record';
+  ghostState.qIndex = 0;
+  ghostState.score = 0;
+  ghostState.startTime = Date.now();
+  State.currentLesson = { questions: GHOST_QUESTIONS, title: 'Ghost Run' };
+  startQuiz();
+  // Override nextQuestion behavior by tracking time
+  document.getElementById('q-total').textContent = GHOST_QUESTIONS.length;
+}
+
+function challengeGhost(idx) {
+  const ghosts = JSON.parse(localStorage.getItem('aidGhosts') || '[]');
+  if (idx < 0 || idx >= ghosts.length) return;
+  const ghost = ghosts[idx];
+  ghostState.mode = 'challenge';
+  ghostState.ghostData = ghost;
+  ghostState.qIndex = 0;
+  ghostState.score = 0;
+  ghostState.startTime = Date.now();
+  // Use the SAME questions the ghost answered
+  State.currentLesson = { questions: GHOST_QUESTIONS, title: 'Challenge: ' + ghost.name + "'s Ghost" };
+  Sound.whistle();
+  startQuiz();
+  document.getElementById('q-total').textContent = GHOST_QUESTIONS.length;
+}
+
+function clearGhosts() {
+  if (confirm('Clear all recorded ghosts?')) {
+    localStorage.removeItem('aidGhosts');
+    renderGhostHome();
+  }
+}
+
+// Hook into showResults to save ghost / show comparison
+const originalShowResults = showResults;
+showResults = function() {
+  const totalTime = Date.now() - ghostState.startTime;
+  const totalSec = Math.floor(totalTime / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  const timeStr = min + ':' + (sec < 10 ? '0' : '') + sec;
+
+  // Check if we're in ghost mode
+  if (State.currentLesson && State.currentLesson.title === 'Ghost Run') {
+    // Record mode - save the ghost
+    const ghosts = JSON.parse(localStorage.getItem('aidGhosts') || '[]');
+    ghosts.push({ name: State.studentName, score: State.score, timeMs: totalTime, timeStr: timeStr, date: new Date().toISOString() });
+    localStorage.setItem('aidGhosts', JSON.stringify(ghosts));
+
+    document.getElementById('screen-results').querySelector('.font-display.text-4xl').textContent = 'Ghost Run Complete!';
+    originalShowResults();
+    // Add ghost-specific info
+    setTimeout(() => {
+      const info = document.createElement('div');
+      info.className = 'question-card';
+      info.style.textAlign = 'center';
+      info.style.marginTop = '1rem';
+      info.innerHTML = '<h3 style="color: var(--gold); font-family: Russo One;">👻 Your Ghost is Saved!</h3><p style="color: var(--muted);">Score: ' + State.score + '/10 | Time: ' + timeStr + '</p><p style="margin-top: 0.5rem;">Now pass the device to a friend to challenge your ghost!</p><button class="btn-primary" style="margin-top: 1rem;" onclick="startGhostMode()">Back to Ghost Mode</button>';
+      document.getElementById('screen-results').querySelector('.w-full').appendChild(info);
+    }, 100);
+    return;
+  }
+
+  if (State.currentLesson && State.currentLesson.title && State.currentLesson.title.startsWith('Challenge:')) {
+    // Challenge mode - compare with ghost
+    const ghost = ghostState.ghostData;
+    originalShowResults();
+    setTimeout(() => {
+      const info = document.createElement('div');
+      info.className = 'question-card';
+      info.style.textAlign = 'center';
+      info.style.marginTop = '1rem';
+      const youWon = State.score > ghost.score || (State.score === ghost.score && totalTime < ghost.timeMs);
+      info.innerHTML = '<h3 style="color: ' + (youWon ? '#22c55e' : '#ef4444') + '; font-family: Russo One; font-size: 1.5rem;">' + (youWon ? '🏆 YOU BEAT THE GHOST!' : '👻 THE GHOST WON!') + '</h3>';
+      info.innerHTML += '<div style="display: flex; justify-content: space-around; margin: 1.5rem 0; flex-wrap: wrap; gap: 1rem;">';
+      info.innerHTML += '<div><div style="color: var(--gold); font-family: Russo One; font-size: 1.5rem;">YOU</div><div style="font-size: 1.2rem;">' + State.score + '/10</div><div style="color: var(--muted);">' + timeStr + '</div></div>';
+      const ghostMin = Math.floor(ghost.timeMs / 60000);
+      const ghostSec = Math.floor((ghost.timeMs % 60000) / 1000);
+      info.innerHTML += '<div><div style="color: var(--gold); font-family: Russo One; font-size: 1.5rem;">GHOST (' + ghost.name + ')</div><div style="font-size: 1.2rem;">' + ghost.score + '/10</div><div style="color: var(--muted);">' + ghost.timeStr + '</div></div>';
+      info.innerHTML += '</div>';
+      info.innerHTML += '<button class="btn-primary" style="margin-top: 1rem;" onclick="startGhostMode()">Back to Ghost Mode</button>';
+      document.getElementById('screen-results').querySelector('.w-full').appendChild(info);
+    }, 100);
+    return;
+  }
+
+  // Normal lesson results
+  originalShowResults();
+};
+
+// ============ VOICE MODE ============
+const VOICE_QUESTIONS = [
+  { type: "voice", shape: "triangle", question: "What shape is this? Say the name!", answers: ["triangle"], hint: "3 sides.", explanation: "Step 1: Count sides.\nStep 2: 3 sides.\nStep 3: TRIANGLE." },
+  { type: "voice", shape: "square", question: "What shape is this? Say the name!", answers: ["square"], hint: "4 equal sides.", explanation: "Step 1: All sides equal.\nStep 2: 4 sides.\nStep 3: SQUARE." },
+  { type: "voice", shape: "circle", question: "What shape is this? Say the name!", answers: ["circle"], hint: "Round, no corners.", explanation: "Step 1: Round shape.\nStep 2: No corners.\nStep 3: CIRCLE." },
+  { type: "voice", shape: "rectangle", question: "What shape is this? Say the name!", answers: ["rectangle"], hint: "2 long, 2 short sides.", explanation: "Step 1: 4 sides.\nStep 2: 2 long, 2 short.\nStep 3: RECTANGLE." },
+  { type: "voice", shape: "star", question: "What shape is this? Say the name!", answers: ["star"], hint: "5 points.", explanation: "Step 1: Pointy shape.\nStep 2: 5 points.\nStep 3: STAR." },
+  { type: "voice", shape: "pentagon", question: "What shape is this? Say the name!", answers: ["pentagon"], hint: "5 sides.", explanation: "Step 1: Count sides.\nStep 2: 5 sides.\nStep 3: PENTAGON." },
+  { type: "voice", shape: "hexagon", question: "What shape is this? Say the name!", answers: ["hexagon"], hint: "6 sides.", explanation: "Step 1: Count sides.\nStep 2: 6 sides.\nStep 3: HEXAGON." },
+  { type: "voice", shape: "rhombus", question: "What shape is this? Say the name!", answers: ["rhombus", "diamond"], hint: "Tilted square.", explanation: "Step 1: 4 equal sides.\nStep 2: Tilted.\nStep 3: RHOMBUS." },
+  { type: "voice", shape: "oval", question: "What shape is this? Say the name!", answers: ["oval", "ellipse"], hint: "Stretched circle.", explanation: "Step 1: Round shape.\nStep 2: Stretched.\nStep 3: OVAL." },
+  { type: "voice", shape: "triangle", question: "What shape is this? Say the name!", answers: ["triangle"], hint: "3 sides.", explanation: "Step 1: 3 sides.\nStep 2: Triangle.\nStep 3: TRIANGLE." }
+];
+
+function startVoiceMode() {
+  Sound.click();
+  State.currentLesson = { questions: VOICE_QUESTIONS, title: 'Voice Mode - Shapes' };
+  State.currentQuestion = 0; State.score = 0; State.mistakes = 0; State.totalAnswered = 0;
+  document.getElementById('q-total').textContent = VOICE_QUESTIONS.length;
+  document.getElementById('score-display').textContent = '0';
+  showScreen('screen-quiz');
+  setupFieldCanvas(); drawIdleField();
+  showQuestion();
+}
+
+// ============ RESULTS & CERTIFICATE ============
+function showResults() {
+  const total = State.currentLesson.questions.length;
+  const correct = State.score;
+  const accuracy = Math.round((correct / total) * 100);
+  
+  document.getElementById('results-name').textContent = State.studentName;
+  document.getElementById('results-goals').textContent = State.score;
+  document.getElementById('results-correct').textContent = correct;
+  document.getElementById('results-accuracy').textContent = accuracy + '%';
+  
+  const mistakes = total - correct;
+  let rank = mistakes <= 2 ? 1 : mistakes <= 4 ? 3 : 5;
+  const list = document.getElementById('ranking-list');
+  list.innerHTML = '';
+  const allNames = [...FAKE_NAMES].sort(() => 0.5 - Math.random());
+  let scoreList = [];
+  for (let i = 0; i < 10; i++) {
+    scoreList.push({ name: allNames[i], score: Math.floor(Math.random() * (total+1)) });
+  }
+  scoreList.push({ name: State.studentName, score: correct, isYou: true });
+  scoreList.sort((a, b) => b.score - a.score);
+  
+  scoreList.forEach((s, i) => {
+    const row = document.createElement('div');
+    row.className = 'ranking-row' + (s.isYou ? ' you' : '');
+    row.innerHTML = `<div class="rank-number ${i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':''}">${i+1}</div><div class="font-semibold flex-1">${s.name}</div><div class="font-display" style="color: var(--gold);">${s.score} pts</div>`;
+    list.appendChild(row);
+  });
+  
+  State.finalRank = scoreList.findIndex(s => s.isYou) + 1;
+  showScreen('screen-results');
+}
+
+function showCertificate() {
+  const total = State.currentLesson.questions.length;
+  const accuracy = Math.round((State.score / total) * 100);
+  document.getElementById('cert-name').textContent = State.studentName;
+  document.getElementById('cert-lesson').textContent = State.currentLesson.title;
+  document.getElementById('cert-goals').textContent = State.score;
+  document.getElementById('cert-accuracy').textContent = accuracy + '%';
+  document.getElementById('cert-rank').textContent = State.finalRank + (State.finalRank === 1 ? 'st' : State.finalRank === 2 ? 'nd' : State.finalRank === 3 ? 'rd' : 'th');
+  document.getElementById('cert-date').textContent = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  showScreen('screen-certificate');
+}
+
+function downloadCertificatePDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('l', 'pt', 'a4');
+  doc.html(document.getElementById('certificate-paper'), {
+    callback: function(doc) { doc.save('AID_Certificate.pdf'); },
+    x: 20, y: 20, width: 800, windowWidth: 800
+  });
+}
+function printCertificate() { window.print(); }
+function restartQuiz() { startQuiz(); }
+
+init();
+</script>
+</body>
+</html>
